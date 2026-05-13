@@ -1,7 +1,7 @@
 # Face_recognition_attacks
 Jakub Ledwoń, Przemysław Bukała, Artur Zamorowski
 
-Short instructions to reproduce the environment and run the example.
+Short instructions to setup the environment.
 
 1. Clone the repository and change into it:
 
