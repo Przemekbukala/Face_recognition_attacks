@@ -1,2 +1,0 @@
-﻿# Face_recognition_attacks
-Przemysław Bukała, Krzysztof Kowalik, Jakub Ledwoń
