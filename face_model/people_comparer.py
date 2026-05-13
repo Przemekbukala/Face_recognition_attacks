@@ -33,7 +33,6 @@ def get_embedding(img_path):
 
     return embedding
 
-# Resolve image paths relative to the repository root (workspace)
 repo_root = Path(__file__).resolve().parent.parent
 emb1 = get_embedding(str(repo_root / "person1.jpg"))
 emb2 = get_embedding(str(repo_root / "person3.jpg"))
