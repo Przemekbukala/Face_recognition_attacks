@@ -4,37 +4,73 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from insightface.app import FaceAnalysis
+import logging
 import warnings
+import os
+import sys
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+logging.getLogger("insightface").setLevel(logging.ERROR)
+logging.getLogger("onnxruntime").setLevel(logging.ERROR)
 
-device_id = -1  # GPU: 0, CPU: -1
-app = FaceAnalysis(name="buffalo_l")
+
+device_id = -1
+
+devnull = open(os.devnull, "w")
+old_stdout = sys.stdout
+sys.stdout = devnull
+
+app = FaceAnalysis(
+    name="buffalo_l",
+    providers=["CPUExecutionProvider"]
+)
+
 app.prepare(ctx_id=device_id)
 
+sys.stdout = old_stdout
+devnull.close()
 
-def get_embedding(img_path: str) -> Optional[np.ndarray]:
+def path_to_img(path: str) -> Optional[np.ndarray]:
+    """
+    Load an image from a file path.
+
+    Parameters
+    ----------
+    path : str
+        Path to the image file.
+
+    Returns
+    -------
+    np.ndarray or None
+        Image in HWC format or None if loading fails.
+    """
+    p = Path(path)
+    if not p.exists():
+        print(f"Image not found: {path}")
+        return None
+
+    try:
+        img = np.array(Image.open(p).convert("RGB"))
+        return img
+    except Exception as e:
+        print(f"Error loading image: {e}")
+        return None
+
+def get_embedding(img: np.ndarray) -> Optional[np.ndarray]:
     """
     Extract face embedding using ArcFace (InsightFace).
 
     Parameters
     ----------
-    img_path : str
-        Path to image.
+    img : np.ndarray
+        Image in HWC format.
 
     Returns
     -------
     np.ndarray or None
         Face embedding vector.
     """
-    p = Path(img_path)
-    if not p.exists():
-        print(f"Image not found: {img_path}")
-        return None
-
-    img = np.array(Image.open(img_path).convert("RGB"))
-
     faces = app.get(img)
 
     if len(faces) == 0:
@@ -71,8 +107,8 @@ def compare_embeddings(
 
 if __name__ == "__main__":
 
-    emb1 = get_embedding("results/person4_grid_attack.jpg")
-    emb2 = get_embedding("samples/person4.jpg")
+    emb1 = get_embedding(path_to_img("results/person3_grid_attack.jpg"))
+    emb2 = get_embedding(path_to_img("samples/person3.jpg"))
 
     distance, result = compare_embeddings(emb1, emb2)
 
