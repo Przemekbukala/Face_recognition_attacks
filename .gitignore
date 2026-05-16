@@ -10,3 +10,6 @@ venv/
 
 # VS Code settings
 .vscode/
+
+# Result sample images
+results/

@@ -1,51 +1,79 @@
-from facenet_pytorch import MTCNN, InceptionResnetV1
+import numpy as np
 from PIL import Image
-import torch
 from pathlib import Path
-import sys
+from typing import Optional, Tuple
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+from insightface.app import FaceAnalysis
+import warnings
 
-mtcnn = MTCNN(image_size=160, device=device)
-resnet = InceptionResnetV1(pretrained='vggface2').eval().to(device)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
-def get_embedding(img_path):
+
+device_id = -1  # GPU: 0, CPU: -1
+app = FaceAnalysis(name="buffalo_l")
+app.prepare(ctx_id=device_id)
+
+
+def get_embedding(img_path: str) -> Optional[np.ndarray]:
+    """
+    Extract face embedding using ArcFace (InsightFace).
+
+    Parameters
+    ----------
+    img_path : str
+        Path to image.
+
+    Returns
+    -------
+    np.ndarray or None
+        Face embedding vector.
+    """
     p = Path(img_path)
     if not p.exists():
         print(f"Image not found: {img_path}")
         return None
-    try:
-        img = Image.open(img_path)
-    except FileNotFoundError:
-        print(f"Image not found: {img_path}")
+
+    img = np.array(Image.open(img_path).convert("RGB"))
+
+    faces = app.get(img)
+
+    if len(faces) == 0:
+        print(f"No face detected: {img_path}")
         return None
 
-    face = mtcnn(img)
+    return faces[0].embedding
 
-    if face is None:
-        print(f"No face detected in: {img_path}")
-        return None
 
-    face = face.unsqueeze(0).to(device)
+def compare_embeddings(
+    emb1: np.ndarray,
+    emb2: np.ndarray,
+    threshold: float = 0.45
+) -> Tuple[float, str]:
+    """
+    Compare two ArcFace embeddings using cosine distance.
+    """
 
-    with torch.no_grad():
-        embedding = resnet(face)
+    if emb1 is None or emb2 is None:
+        return float("inf"), "Invalid embeddings"
 
-    return embedding
+    emb1 = emb1 / np.linalg.norm(emb1)
+    emb2 = emb2 / np.linalg.norm(emb2)
 
-repo_root = Path(__file__).resolve().parent.parent
-emb1 = get_embedding(str(repo_root / "samples/person1.jpg"))
-emb2 = get_embedding(str(repo_root / "samples/person2.jpg"))
+    cosine_distance = 1 - np.dot(emb1, emb2)
 
-if emb1 is None or emb2 is None:
-    print("Unable to compute embeddings for one or both images. Exiting.")
-    sys.exit(1)
+    if cosine_distance < threshold:
+        result = "Same person"
+    else:
+        result = "Different person"
 
-distance = torch.dist(emb1, emb2).item()
+    return float(cosine_distance), result
 
-print("Distance:", distance)
 
-if distance < 1.0:
-    print("Same person")
-else:
-    print("Different person")
+if __name__ == "__main__":
+
+    emb1 = get_embedding("results/person4_grid_attack.jpg")
+    emb2 = get_embedding("samples/person4.jpg")
+
+    distance, result = compare_embeddings(emb1, emb2)
+
+    print(f"Distance: {distance:.4f} - {result}")
