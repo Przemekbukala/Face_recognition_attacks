@@ -25,6 +25,17 @@ pip install -r requirements.txt
 ```
 
 Notes and troubleshooting:
+- **InsightFace models** download into `data/insightface/` inside the repo. 
 - `facenet-pytorch` will download pretrained models on first run
 - On CPU-only machines you may need to install a CPU-compatible `torch` build.
 
+**LFW + benchmark** -  `benchmark.py`:
+
+1. Download LFW via KaggleHub, then **copy** images and pair lists into `data/lfw/` in the repo.
+2. Run all registered attacks on the dataset.
+3. Write `results/benchmark_results.json`, `results/run_info.json`, and `results/benchmark_summary.txt`.
+
+```bash
+python3 benchmark.py                  # full benchmark
+python3 benchmark.py --n-pairs 300    # quick subset
+```
