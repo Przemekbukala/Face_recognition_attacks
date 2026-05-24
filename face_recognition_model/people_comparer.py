@@ -6,6 +6,7 @@ from typing import Iterable, Optional, Tuple
 from insightface.app import FaceAnalysis
 import os
 import sys
+import argparse
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 INSIGHTFACE_ROOT = _REPO_ROOT / "data" / "insightface"
@@ -28,21 +29,13 @@ app.prepare(ctx_id=device_id)
 sys.stdout = old_stdout
 devnull.close()
 
+
 def path_to_img(path: str) -> Optional[np.ndarray]:
     """
     Load an image from a file path.
-
-    Parameters
-    ----------
-    path : str
-        Path to the image file.
-
-    Returns
-    -------
-    np.ndarray or None
-        Image in HWC format or None if loading fails.
     """
     p = Path(path)
+
     if not p.exists():
         print(f"Image not found: {path}")
         return None
@@ -50,8 +43,9 @@ def path_to_img(path: str) -> Optional[np.ndarray]:
     try:
         img = np.array(Image.open(p).convert("RGB"))
         return img
+
     except Exception as e:
-        print(f"Error loading image: {e}")
+        print(f"Error loading image {path}: {e}")
         return None
 
 
@@ -65,11 +59,6 @@ def get_embedding(img: np.ndarray, *, verbose: bool = False) -> Optional[np.ndar
         Image in HWC format.
     verbose : bool
         If True, print when no face is detected.
-
-    Returns
-    -------
-    np.ndarray or None
-        Face embedding vector.
     """
     faces = app.get(img)
 
@@ -108,9 +97,23 @@ def compare_embeddings(
 
 if __name__ == "__main__":
 
-    emb1 = get_embedding(path_to_img("results/person4_grid_attack.jpg"))
-    emb2 = get_embedding(path_to_img("samples/person4.jpg"))
+    if len(sys.argv) != 3:
+        print("Usage:")
+        print("python compare_faces.py <image1> <image2>")
+        sys.exit(1)
+
+    image1_path = sys.argv[1]
+    image2_path = sys.argv[2]
+
+    img1 = path_to_img(image1_path)
+    img2 = path_to_img(image2_path)
+
+    emb1 = get_embedding(img1)
+    emb2 = get_embedding(img2)
 
     distance, result = compare_embeddings(emb1, emb2)
 
-    print(f"Distance: {distance:.4f} - {result}")
+    print(f"Image 1: {image1_path}")
+    print(f"Image 2: {image2_path}")
+    print(f"Distance: {distance:.4f}")
+    print(f"Result: {result}")
