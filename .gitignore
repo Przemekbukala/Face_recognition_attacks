@@ -13,3 +13,5 @@ venv/
 
 # Result sample images
 results/
+
+data/

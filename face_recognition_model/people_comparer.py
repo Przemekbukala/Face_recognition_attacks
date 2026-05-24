@@ -1,21 +1,18 @@
 import numpy as np
 from PIL import Image
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Iterable, Optional, Tuple
 
 from insightface.app import FaceAnalysis
-import logging
-import warnings
 import os
 import sys
 import argparse
 
-warnings.filterwarnings("ignore", category=FutureWarning)
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+INSIGHTFACE_ROOT = _REPO_ROOT / "data" / "insightface"
+INSIGHTFACE_ROOT.mkdir(parents=True, exist_ok=True)
 
-logging.getLogger("insightface").setLevel(logging.ERROR)
-logging.getLogger("onnxruntime").setLevel(logging.ERROR)
-
-device_id = -1
+device_id = -1  # GPU: 0, CPU: -1
 
 devnull = open(os.devnull, "w")
 old_stdout = sys.stdout
@@ -23,7 +20,8 @@ sys.stdout = devnull
 
 app = FaceAnalysis(
     name="buffalo_l",
-    providers=["CPUExecutionProvider"]
+    root=str(INSIGHTFACE_ROOT),
+    providers=["CPUExecutionProvider"],
 )
 
 app.prepare(ctx_id=device_id)
@@ -51,18 +49,22 @@ def path_to_img(path: str) -> Optional[np.ndarray]:
         return None
 
 
-def get_embedding(img: np.ndarray) -> Optional[np.ndarray]:
+def get_embedding(img: np.ndarray, *, verbose: bool = False) -> Optional[np.ndarray]:
     """
     Extract face embedding using ArcFace (InsightFace).
+
+    Parameters
+    ----------
+    img : np.ndarray
+        Image in HWC format.
+    verbose : bool
+        If True, print when no face is detected.
     """
-
-    if img is None:
-        return None
-
     faces = app.get(img)
 
     if len(faces) == 0:
-        print("No face detected")
+        if verbose:
+            print("No face detected")
         return None
 
     return faces[0].embedding
