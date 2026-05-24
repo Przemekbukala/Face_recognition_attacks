@@ -148,7 +148,7 @@ def grid_attack(
     attacked_img = Image.fromarray(attacked)
     if output_bool:
         repo_root = Path(__file__).resolve().parent.parent.parent
-        output_path = repo_root / "results" / Path(input_path).name.replace(".jpg", "_grid_attack.jpg")
+        output_path = repo_root / "results" / "grid_attack" / Path(input_path).name
         attacked_img.save(output_path)
     return attacked_img
     
