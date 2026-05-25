@@ -1,0 +1,9 @@
+attacks:
+  - name: "bitflip"
+    parameters:
+      bits_to_flip: 50
+
+  - name: "jakiś_inny_atak_podmieńcie_sobie"
+    parameters:
+      param1: "value1"
+      param2: "value2"
