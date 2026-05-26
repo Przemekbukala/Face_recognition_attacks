@@ -104,38 +104,11 @@ def image_level_grid_occlusion(
     return attacked
 
 
-def grid_attack(input_path: str = None, output_bool: bool = False, rho_grids: int = 25, line_width: int = 1) -> Image.Image:
-    """
-    Applies grid-based occlusion attack to an image and optionally saves the result.
+def path_to_image(input_path: str = None, output_bool: bool = False) -> np.ndarray:
 
-    Parameters
-    ----------
-    input_path : str
-        Path to the input image.
-    output_bool : bool
-        Whether to save the attacked image.
-    rho_grids : int
-        Grid density.
-    line_width : int
-        Width of grid lines.
-    random_spacing : bool
-        Whether to use random spacing for grid lines.
-    diag_lines : bool
-        If True, occlusion will include only diagonal grid lines.
-
-    Returns
-    -------
-    Image.Image
-        Attacked image.
-    """
     img = Image.open(input_path).convert("RGB")
     img_np = np.array(img)
-    attacked = image_level_grid_occlusion(
-        img_np,
-        rho_grids=rho_grids,
-        line_width=line_width,
-    )
-    attacked_img = Image.fromarray(attacked)
+    attacked_img = image_level_grid_occlusion(img_np, rho_grids=25, line_width=1)
     if output_bool:
         repo_root = Path(__file__).resolve().parent.parent.parent
         output_path = repo_root / "results" / "grid_attack" / Path(input_path).name
@@ -144,5 +117,5 @@ def grid_attack(input_path: str = None, output_bool: bool = False, rho_grids: in
 
 
 if __name__ == "__main__":
-    attacked_img = grid_attack("samples/person4.jpg", output_bool=True, rho_grids=25, line_width=1)
+    attacked_img = image_level_grid_occlusion(path_to_image("samples/person4.jpg", output_bool=True), rho_grids=25, line_width=1)
     attacked_img.show()
