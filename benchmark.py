@@ -17,27 +17,86 @@ from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from utils.params_loader import get_config
 from src.attacks.image_lvl_grid_based_occlusion import image_level_grid_occlusion
+from src.attacks.face_level_disortion.landmark_occlusion import apply_occlusion
 from src.lfw_dataset import LFWDataset
 from face_recognition_model.people_comparer import get_embedding, compare_embeddings
 
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
-#  Attacks 
+ATTACK_FUNCTIONS = {
+    "grid_occlusion": lambda img, **p: image_level_grid_occlusion(img, **p),
 
-def grid_occlusion(img: np.ndarray) -> np.ndarray:
-    return image_level_grid_occlusion(img, rho_grids=8, line_width=1)
+    "face_level_occlusion_eyes": lambda img, **p: apply_occlusion(
+        "eyes",
+        img,
+        **p
+    ),
 
-ATTACKS = {
-    "grid_occlusion": grid_occlusion,
+    "face_level_occlusion_nose": lambda img, **p: apply_occlusion(
+        "nose",
+        img,
+        **p
+    ),
+
+    "face_level_occlusion_mouth": lambda img, **p: apply_occlusion(
+        "mouth",
+        img,
+        **p
+    ),
 }
+config = get_config()
 
+ATTACKS = []
+
+for a in config["attacks"]:
+    name = a["name"]
+    params = a.get("parameters", {})
+    if name not in ATTACK_FUNCTIONS:
+        print(f"[WARN] Skipping unknown attack: {name}")
+        continue
+    fn = ATTACK_FUNCTIONS[name]
+
+    ATTACKS.append((name, lambda img, fn=fn, p=params: fn(img, **p)))
+
+def determine_threshold(pairs, percentile=95):
+    """Determine distance threshold based on a percentile of distances between different people pairs.
+    Parameters
+    ----------
+    pairs : list
+        List of image pairs.
+    percentile : int, optional
+        Percentile to use for threshold determination (default is 95).
+
+    Returns
+    -------
+    float
+        Determined threshold.
+    """
+    distances_same = []
+    distances_different = []
+
+    for pair in pairs:
+        img1, img2 = pair.load_images()
+        emb1 = get_embedding(img1)
+        emb2 = get_embedding(img2)
+        dist, label = compare_embeddings(emb1, emb2, threshold=0.5)  # Use a high threshold to get raw distances
+
+        if label == "Same person":
+            distances_same.append(dist)
+        elif label == "Different people":
+            distances_different.append(dist)
+
+    threshold = np.percentile(distances_different, percentile)
+    print(f"Determined threshold at {percentile} percentile: {threshold:.4f}")
+    return threshold
 #  Benchmark 
 
 def run_benchmark(pairs, threshold: float) -> dict:
     all_results = {}
 
-    for attack_name, attack_fn in ATTACKS.items():
+    for attack_name, attack_fn in ATTACKS:
         print(f"\n{'='*60}")
         print(f"  Attack: {attack_name}  |  pairs: {len(pairs)}  |  threshold: {threshold}")
         print(f"{'='*60}")
@@ -128,8 +187,9 @@ def main():
         pairs = ds.get_pairs(n=n, only_same=True, seed=args.seed)
 
     print(f"Starting benchmark: {len(pairs)} pairs, attacks: {list(ATTACKS)}\n")
-
-    results = run_benchmark(pairs, threshold=args.threshold)
+    thresh = determine_threshold(pairs, percentile=95)
+    print(f"Using threshold: {thresh:.4f}\n")
+    results = run_benchmark(pairs, threshold=thresh)
 
     RESULTS_DIR.mkdir(exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")

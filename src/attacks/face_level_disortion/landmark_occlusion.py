@@ -1,5 +1,7 @@
 import numpy as np
-import landmarks_detector as ld
+
+from face_recognition_model.people_comparer import get_embedding, compare_embeddings
+from . import landmarks_detector as ld
 from PIL import Image
 
 def occlude_eyes(
@@ -102,13 +104,65 @@ def occlude_mouth(
 
     return out
 
+def apply_occlusion(
+    attack_name: str,
+    img: np.ndarray,
+    padding_x: int = 25,
+    padding_y: int = 25
+) -> np.ndarray:
+    """
+    Apply selected face occlusion attack.
+
+    Parameters
+    ----------
+    attack_name : str
+        Name of attack:
+        - eyes
+        - nose
+        - mouth
+
+    img : np.ndarray
+        Input image.
+
+    kps : np.ndarray
+        Facial landmarks.
+
+    x : int
+        X-axis padding for occlusion.
+
+    y : int
+        Y-axis padding for occlusion.
+
+    Returns
+    -------
+    np.ndarray
+        Attacked image.
+    """
+    kps = ld.app.get(img)[0].kps
+    if attack_name == "eyes":
+        attack_fn = occlude_eyes
+    elif attack_name == "nose":
+        attack_fn = occlude_nose
+    elif attack_name == "mouth":
+        attack_fn = occlude_mouth
+    return attack_fn(img, kps, padding_x, padding_y)
+
 if __name__ == "__main__":
     img = ld.path_to_img("samples/person1.jpg")
-    kps = ld.app.get(img)[0].kps
-    img_eyes = occlude_eyes(img, kps)
-    img_nose = occlude_nose(img, kps)
-    img_mouth = occlude_mouth(img, kps)
+    img_eyes = apply_occlusion("eyes", img)
+    img_nose = apply_occlusion("nose", img)
+    img_mouth = apply_occlusion("mouth", img)
 
     Image.fromarray(img_eyes).save("results/face_level_disortion/eyes_occluded.jpg")
     Image.fromarray(img_nose).save("results/face_level_disortion/nose_occluded.jpg")
     Image.fromarray(img_mouth).save("results/face_level_disortion/mouth_occluded.jpg")
+    emb_img = get_embedding(img)
+    emb_img_eyes = get_embedding(img_eyes)
+    emb_img_nose = get_embedding(img_nose)
+    emb_img_mouth = get_embedding(img_mouth)
+    comparison_eyes = compare_embeddings(get_embedding(ld.path_to_img("samples/person2.jpg")), emb_img_eyes)
+    comparison_nose = compare_embeddings(emb_img, emb_img_nose)
+    comparison_mouth = compare_embeddings(emb_img, emb_img_mouth)
+    print(f"Eyes occlusion similarity:  {comparison_eyes}")
+    print(f"Nose occlusion similarity:  {comparison_nose}")
+    print(f"Mouth occlusion similarity:  {comparison_mouth}")
