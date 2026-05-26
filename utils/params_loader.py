@@ -31,3 +31,7 @@ def get_attack_params(attack_name: str) -> dict:
         if attack.get("name") == attack_name:
             return attack.get("parameters")
     return None
+
+def get_attacks():
+    config = get_config()
+    return config.get("attacks", [])
