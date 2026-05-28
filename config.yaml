@@ -1,9 +1,14 @@
 attacks:
-  - name: "bitflip"
+  - name: bitflip
     parameters:
       bits_to_flip: 50
+      population_size: 80
+      epochs: 300
+      mutation_chance: 0.05
+      mutation_max: 20
+      percent_of_population_to_keep: 0.3
 
-  - name: "jakiś_inny_atak_podmieńcie_sobie"
+  - name: jakiś_inny_atak_podmieńcie_sobie
     parameters:
-      param1: "value1"
-      param2: "value2"
+      param1: value1
+      param2: value2

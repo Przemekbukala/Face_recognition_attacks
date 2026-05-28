@@ -2,6 +2,8 @@ import numpy as np
 from PIL import Image
 from pathlib import Path
 from typing import Iterable, Optional, Tuple
+from collections import OrderedDict
+from hashlib import sha1
 
 from insightface.app import FaceAnalysis
 import os
@@ -12,7 +14,10 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 INSIGHTFACE_ROOT = _REPO_ROOT / "data" / "insightface"
 INSIGHTFACE_ROOT.mkdir(parents=True, exist_ok=True)
 
-device_id = -1  # GPU: 0, CPU: -1
+device_id = 0  # GPU: 0, CPU: -1
+
+_EMBED_CACHE_SIZE = int(os.getenv("EMBED_CACHE_SIZE", "256"))
+_EMBED_CACHE: "OrderedDict[str, Optional[np.ndarray]]" = OrderedDict()
 
 devnull = open(os.devnull, "w")
 old_stdout = sys.stdout
@@ -49,7 +54,7 @@ def path_to_img(path: str) -> Optional[np.ndarray]:
         return None
 
 
-def get_embedding(img: np.ndarray, *, verbose: bool = False) -> Optional[np.ndarray]:
+def dget_embedding(img: np.ndarray, *, verbose: bool = False) -> Optional[np.ndarray]:
     """
     Extract face embedding using ArcFace (InsightFace).
 
@@ -60,14 +65,34 @@ def get_embedding(img: np.ndarray, *, verbose: bool = False) -> Optional[np.ndar
     verbose : bool
         If True, print when no face is detected.
     """
+    if img is None:
+        return None
+
+    if not img.flags["C_CONTIGUOUS"]:
+        img = np.ascontiguousarray(img)
+
+    cache_key = f"{img.shape}-{img.dtype}-{sha1(img.tobytes()).hexdigest()}"
+    if cache_key in _EMBED_CACHE:
+        _EMBED_CACHE.move_to_end(cache_key)
+        return _EMBED_CACHE[cache_key]
+
     faces = app.get(img)
 
     if len(faces) == 0:
         if verbose:
             print("No face detected")
+        _EMBED_CACHE[cache_key] = None
+        _EMBED_CACHE.move_to_end(cache_key)
+        if len(_EMBED_CACHE) > _EMBED_CACHE_SIZE:
+            _EMBED_CACHE.popitem(last=False)
         return None
 
-    return faces[0].embedding
+    embedding = faces[0].embedding
+    _EMBED_CACHE[cache_key] = embedding
+    _EMBED_CACHE.move_to_end(cache_key)
+    if len(_EMBED_CACHE) > _EMBED_CACHE_SIZE:
+        _EMBED_CACHE.popitem(last=False)
+    return embedding
 
 
 def compare_embeddings(
