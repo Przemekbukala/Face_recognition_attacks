@@ -54,7 +54,7 @@ def path_to_img(path: str) -> Optional[np.ndarray]:
         return None
 
 
-def dget_embedding(img: np.ndarray, *, verbose: bool = False) -> Optional[np.ndarray]:
+def get_embedding(img: np.ndarray, *, verbose: bool = False) -> Optional[np.ndarray]:
     """
     Extract face embedding using ArcFace (InsightFace).
 
