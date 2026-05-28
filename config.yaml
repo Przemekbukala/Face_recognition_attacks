@@ -8,7 +8,11 @@ attacks:
       mutation_max: 20
       percent_of_population_to_keep: 0.3
 
-  - name: jakiś_inny_atak_podmieńcie_sobie
+  - name: "grid_occlusion"
     parameters:
-      param1: value1
-      param2: value2
+      rho_grids: 8
+      line_width: 1
+  - name: "grid_occlusion"
+    parameters:
+      rho_grids: 16
+      line_width: 1
