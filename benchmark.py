@@ -45,6 +45,7 @@ ATTACK_FUNCTIONS = {
         img,
         **p
     ),
+
 }
 config = get_config()
 
@@ -60,37 +61,6 @@ for a in config["attacks"]:
 
     ATTACKS.append((name, lambda img, fn=fn, p=params: fn(img, **p)))
 
-def determine_threshold(pairs, percentile=95):
-    """Determine distance threshold based on a percentile of distances between different people pairs.
-    Parameters
-    ----------
-    pairs : list
-        List of image pairs.
-    percentile : int, optional
-        Percentile to use for threshold determination (default is 95).
-
-    Returns
-    -------
-    float
-        Determined threshold.
-    """
-    distances_same = []
-    distances_different = []
-
-    for pair in pairs:
-        img1, img2 = pair.load_images()
-        emb1 = get_embedding(img1)
-        emb2 = get_embedding(img2)
-        dist, label = compare_embeddings(emb1, emb2, threshold=0.5)  # Use a high threshold to get raw distances
-
-        if label == "Same person":
-            distances_same.append(dist)
-        elif label == "Different people":
-            distances_different.append(dist)
-
-    threshold = np.percentile(distances_different, percentile)
-    print(f"Determined threshold at {percentile} percentile: {threshold:.4f}")
-    return threshold
 #  Benchmark 
 
 def run_benchmark(pairs, threshold: float) -> dict:
@@ -103,32 +73,51 @@ def run_benchmark(pairs, threshold: float) -> dict:
 
         rows = []
         n_skipped = 0
+        n_skipped_after = 0
         t0 = time.time()
+
+        n_before_same = 0
+        n_before_different = 0
 
         for pair in tqdm(pairs, desc=attack_name, unit="pair"):
             img1, img2 = pair.load_images()
 
             emb1 = get_embedding(img1)
             emb2 = get_embedding(img2)
-            dist_before, label_before = compare_embeddings(emb1, emb2, threshold)
+
+            dist_before, label_before = compare_embeddings(
+                emb1, emb2, threshold
+            )
 
             if label_before == "Invalid embeddings":
                 n_skipped += 1
                 continue
 
+            if label_before == "Same person":
+                n_before_same += 1
+            elif label_before == "Different people":
+                n_before_different += 1
+
             img1_attacked = attack_fn(img1)
 
             emb1_attacked = get_embedding(img1_attacked)
-            dist_after, label_after = compare_embeddings(emb1_attacked, emb2, threshold)
+            emb2_attacked = emb2  # unchanged
+
+            dist_after, label_after = compare_embeddings(
+                emb1_attacked, emb2_attacked, threshold
+            )
 
             if label_after == "Invalid embeddings":
-                n_skipped += 1
+                n_skipped_after += 1
                 continue
 
             fooled = label_after != label_before
-            tqdm.write(f"  {'[FOOLED]  ' if fooled else '[NO CHANGE]'}  "
-                       f"{pair.img1_path.stem} vs {pair.img2_path.stem}  "
-                       f"{dist_before:.4f} -> {dist_after:.4f}  ({label_after})")
+
+            tqdm.write(
+                f"  {'[FOOLED]  ' if fooled else '[NO CHANGE]'}  "
+                f"{pair.img1_path.stem} vs {pair.img2_path.stem}  "
+                f"{dist_before:.4f} -> {dist_after:.4f}  ({label_after})"
+            )
 
             rows.append({
                 "img1": pair.img1_path.stem,
@@ -146,22 +135,37 @@ def run_benchmark(pairs, threshold: float) -> dict:
         def avg(lst, key):
             return round(float(np.mean([r[key] for r in lst])), 4) if lst else float("nan")
 
-        fooled_pct = round(sum(1 for r in rows if r["fooled"]) / evaluated * 100, 1) if evaluated else float("nan")
+        fooled_pct = (
+            round(sum(1 for r in rows if r["fooled"]) / evaluated * 100, 1)
+            if evaluated else float("nan")
+        )
 
         print(f"\n{'─'*60}")
-        print(f"  Evaluated: {evaluated}   Skipped: {n_skipped}   Time: {elapsed:.1f}s")
+        print(f"  Evaluated: {evaluated}   Skipped before attack: {n_skipped}   Skipped after attack: {n_skipped_after}   Time: {elapsed:.1f}s")
         print(f"  Avg distance before attack : {avg(rows, 'distance_before'):.4f}")
         print(f"  Avg distance after attack  : {avg(rows, 'distance_after'):.4f}")
-        print(f"  Attack fooled model        : {fooled_pct:.1f}%  (Same -> Different person)")
+
+        print(f"\n  Before attack:")
+        print(f"    Same person      : {n_before_same}")
+        print(f"    Different people : {n_before_different}")
+
+        print(f"  Attack fooled model : {fooled_pct:.1f}%")
 
         all_results[attack_name] = {
             "n_evaluated": evaluated,
             "n_skipped": n_skipped,
+            "n_skipped_after": n_skipped_after,
             "elapsed_seconds": round(elapsed, 1),
             "threshold": threshold,
+
             "avg_dist_before": avg(rows, "distance_before"),
             "avg_dist_after": avg(rows, "distance_after"),
+
             "fooled_pct": fooled_pct,
+
+            "before_same": n_before_same,
+            "before_different": n_before_different,
+
             "pairs": rows,
         }
 
@@ -172,7 +176,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--n-pairs", type=int, default=-1,
                         help="Number of pairs (-1 = all)")
-    parser.add_argument("--threshold", type=float, default=0.45)
+    parser.add_argument("--threshold", type=float, default=0.7233)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -187,9 +191,7 @@ def main():
         pairs = ds.get_pairs(n=n, only_same=True, seed=args.seed)
 
     print(f"Starting benchmark: {len(pairs)} pairs, attacks: {list(ATTACKS)}\n")
-    thresh = determine_threshold(pairs, percentile=95)
-    print(f"Using threshold: {thresh:.4f}\n")
-    results = run_benchmark(pairs, threshold=thresh)
+    results = run_benchmark(pairs, threshold=args.threshold) 
 
     RESULTS_DIR.mkdir(exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -204,7 +206,7 @@ def main():
         f.write(f"Pairs: {len(pairs)}  Threshold: {args.threshold}\n\n")
         for attack_name, r in results.items():
             f.write(f"Attack: {attack_name}\n")
-            f.write(f"  Evaluated: {r['n_evaluated']}  Skipped: {r['n_skipped']}  Time: {r['elapsed_seconds']}s\n")
+            f.write(f"  Evaluated: {r['n_evaluated']}  Skipped before attack: {r['n_skipped']}  Skipped after attack: {r['n_skipped_after']}  Time: {r['elapsed_seconds']}s\n")
             f.write(f"  Avg distance before: {r['avg_dist_before']}\n")
             f.write(f"  Avg distance after : {r['avg_dist_after']}\n")
             f.write(f"  Fooled model       : {r['fooled_pct']}%\n\n")
