@@ -59,16 +59,21 @@ for a in config["attacks"]:
         continue
     fn = ATTACK_FUNCTIONS[name]
 
-    ATTACKS.append((name, lambda img, fn=fn, p=params: fn(img, **p)))
+    ATTACKS.append((name, fn, params))
 
 #  Benchmark 
 
 def run_benchmark(pairs, threshold: float) -> dict:
     all_results = {}
 
-    for attack_name, attack_fn in ATTACKS:
+    for idx, (attack_name, attack_fn, attack_params) in enumerate(ATTACKS, start=1):
+        # create a unique key for the attack so multiple attacks with the same
+        # base name but different parameters don't overwrite each other
+        attack_key = f"{attack_name}#{idx}"
+        attack_display = f"{attack_name} {json.dumps(attack_params, ensure_ascii=False)}"
+
         print(f"\n{'='*60}")
-        print(f"  Attack: {attack_name}  |  pairs: {len(pairs)}  |  threshold: {threshold}")
+        print(f"  Attack: {attack_display}  |  pairs: {len(pairs)}  |  threshold: {threshold}")
         print(f"{'='*60}")
 
         rows = []
@@ -79,7 +84,7 @@ def run_benchmark(pairs, threshold: float) -> dict:
         n_before_same = 0
         n_before_different = 0
 
-        for pair in tqdm(pairs, desc=attack_name, unit="pair"):
+        for pair in tqdm(pairs, desc=attack_key, unit="pair"):
             img1, img2 = pair.load_images()
 
             emb1 = get_embedding(img1)
@@ -98,7 +103,7 @@ def run_benchmark(pairs, threshold: float) -> dict:
             elif label_before == "Different people":
                 n_before_different += 1
 
-            img1_attacked = attack_fn(img1)
+            img1_attacked = attack_fn(img1, **attack_params)
 
             emb1_attacked = get_embedding(img1_attacked)
             emb2_attacked = emb2  # unchanged
@@ -151,13 +156,12 @@ def run_benchmark(pairs, threshold: float) -> dict:
 
         print(f"  Attack fooled model : {fooled_pct:.1f}%")
 
-        all_results[attack_name] = {
+        all_results[attack_key] = {
             "n_evaluated": evaluated,
             "n_skipped": n_skipped,
             "n_skipped_after": n_skipped_after,
             "elapsed_seconds": round(elapsed, 1),
             "threshold": threshold,
-
             "avg_dist_before": avg(rows, "distance_before"),
             "avg_dist_after": avg(rows, "distance_after"),
 
@@ -166,6 +170,8 @@ def run_benchmark(pairs, threshold: float) -> dict:
             "before_same": n_before_same,
             "before_different": n_before_different,
 
+            "parameters": attack_params,
+            "display_name": attack_display,
             "pairs": rows,
         }
 
@@ -189,8 +195,9 @@ def main():
         pairs = ds.get_pairs(n=-1, only_same=True, seed=args.seed)
     else:
         pairs = ds.get_pairs(n=n, only_same=True, seed=args.seed)
-
-    print(f"Starting benchmark: {len(pairs)} pairs, attacks: {list(ATTACKS)}\n")
+    # build a readable attacks description including parameters
+    attacks_desc = [f"{name} {params}" for name, _, params in ATTACKS]
+    print(f"Starting benchmark: {len(pairs)} pairs, attacks: {attacks_desc}\n")
     results = run_benchmark(pairs, threshold=args.threshold) 
 
     RESULTS_DIR.mkdir(exist_ok=True)
@@ -205,7 +212,20 @@ def main():
         f.write(f"Benchmark  {ts}\n")
         f.write(f"Pairs: {len(pairs)}  Threshold: {args.threshold}\n\n")
         for attack_name, r in results.items():
-            f.write(f"Attack: {attack_name}\n")
+            params_str = json.dumps(r.get('parameters', {}), ensure_ascii=False)
+            f.write(f"Attack: {attack_name}  Parameters: {params_str}\n")
+            f.write(f"  Evaluated: {r['n_evaluated']}  Skipped before attack: {r['n_skipped']}  Skipped after attack: {r['n_skipped_after']}  Time: {r['elapsed_seconds']}s\n")
+            f.write(f"  Avg distance before: {r['avg_dist_before']}\n")
+            f.write(f"  Avg distance after : {r['avg_dist_after']}\n")
+            f.write(f"  Fooled model       : {r['fooled_pct']}%\n\n")
+
+    all_txt_path = RESULTS_DIR / "all_results.txt"
+    with open(all_txt_path, "a", encoding="utf-8") as f:
+        f.write(f"Benchmark  {ts}\n")
+        f.write(f"Pairs: {len(pairs)}  Threshold: {args.threshold}\n\n")
+        for attack_name, r in results.items():
+            params_str = json.dumps(r.get('parameters', {}), ensure_ascii=False)
+            f.write(f"Attack: {attack_name}  Parameters: {params_str}\n")
             f.write(f"  Evaluated: {r['n_evaluated']}  Skipped before attack: {r['n_skipped']}  Skipped after attack: {r['n_skipped_after']}  Time: {r['elapsed_seconds']}s\n")
             f.write(f"  Avg distance before: {r['avg_dist_before']}\n")
             f.write(f"  Avg distance after : {r['avg_dist_after']}\n")
