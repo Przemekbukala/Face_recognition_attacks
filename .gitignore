@@ -15,3 +15,6 @@ venv/
 results/
 
 data/
+
+.trunk
+.gitignore

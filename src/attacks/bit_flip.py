@@ -50,8 +50,9 @@ def _set_up_training(size_x : int, size_y : int) -> np.array:
     """Set up the training data for the genetic algorithm."""
     population = np.zeros((get_attack_params("bitflip").get("population_size"), get_attack_params("bitflip").get("bits_to_flip") * 2), dtype=np.uint8)
     for genome in population:
-        genome[0] = np.random.randint(0, size_x)
-        genome[1] = np.random.randint(0, size_y) 
+        for i in range(0, len(genome), 2):
+            genome[i] = np.random.randint(0, size_x)
+            genome[i + 1] = np.random.randint(0, size_y)
     logger.debug("Population initialized")
     return population
 
