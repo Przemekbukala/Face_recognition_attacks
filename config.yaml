@@ -16,3 +16,18 @@ attacks:
     parameters:
       rho_grids: 16
       line_width: 1
+  - name: "fim"
+    parameters:
+      epsilon: 16
+      steps: 10
+      alpha: 1.6
+      pretrained: "vggface2"
+      face_only: true
+
+  - name: "fim"
+    parameters:
+      epsilon: 16
+      steps: 10
+      alpha: 1.6
+      pretrained: "casia-webface"
+      face_only: true

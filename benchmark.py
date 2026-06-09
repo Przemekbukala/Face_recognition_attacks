@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from utils.params_loader import get_config
 from src.attacks.image_lvl_grid_based_occlusion import image_level_grid_occlusion
 from src.attacks.face_level_disortion.landmark_occlusion import apply_occlusion
+from src.attacks.feature_level.feature_attacks import ffm_attack, fim_attack
 from src.lfw_dataset import LFWDataset
 from face_recognition_model.people_comparer import get_embedding, compare_embeddings
 
@@ -45,6 +46,10 @@ ATTACK_FUNCTIONS = {
         img,
         **p
     ),
+
+    "ffm": lambda img, **p: ffm_attack(img, **p),
+
+    "fim": lambda img, **p: fim_attack(img, **p),
 
 }
 config = get_config()
